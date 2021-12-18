@@ -211,6 +211,13 @@
                             android:layout_column="1"
                             android:onClick="onArmButtonTap"
                             android:visibility="invisible" />
+
+                        <TextView
+                            android:id="@+id/batteryVoltage"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="TextView" />
+
                     </TableRow>
 
                 </TableLayout>

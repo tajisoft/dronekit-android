@@ -2,6 +2,7 @@ package org.droidplanner.sample.hellodrone;
 
 import android.content.Context;
 import android.graphics.SurfaceTexture;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -38,6 +39,7 @@ import com.o3dr.services.android.lib.drone.companion.solo.SoloState;
 import com.o3dr.services.android.lib.drone.connection.ConnectionParameter;
 import com.o3dr.services.android.lib.drone.connection.ConnectionType;
 import com.o3dr.services.android.lib.drone.property.Altitude;
+import com.o3dr.services.android.lib.drone.property.Battery;
 import com.o3dr.services.android.lib.drone.property.Gps;
 import com.o3dr.services.android.lib.drone.property.Home;
 import com.o3dr.services.android.lib.drone.property.Speed;
@@ -280,6 +282,10 @@ public class MainActivity extends AppCompatActivity implements DroneListener, To
                 updateDistanceFromHome();
                 break;
 
+            case AttributeEvent.BATTERY_UPDATED:
+                updateBatteryVoltage();
+                break;
+
             default:
                 // Log.i("DRONE_EVENT", event); //Uncomment to see events from the drone
                 break;
@@ -324,7 +330,6 @@ public class MainActivity extends AppCompatActivity implements DroneListener, To
 
     public void onFlightModeSelected(View view) {
         VehicleMode vehicleMode = (VehicleMode) this.modeSelector.getSelectedItem();
-
         VehicleApi.getApi(this.drone).setVehicleMode(vehicleMode, new AbstractCommandListener() {
             @Override
             public void onSuccess() {
@@ -347,18 +352,34 @@ public class MainActivity extends AppCompatActivity implements DroneListener, To
         State vehicleState = this.drone.getAttribute(AttributeType.STATE);
 
         if (vehicleState.isFlying()) {
-            // Land
-            VehicleApi.getApi(this.drone).setVehicleMode(VehicleMode.COPTER_LAND, new SimpleCommandListener() {
+            ControlApi.getApi(this.drone).goTo(new LatLong(35.4715, 138.745188), true, new AbstractCommandListener() {
+                @Override
+                public void onSuccess() {
+                    alertUser("Start goto....");
+                }
+
                 @Override
                 public void onError(int executionError) {
-                    alertUser("Unable to land the vehicle.");
+
                 }
 
                 @Override
                 public void onTimeout() {
-                    alertUser("Unable to land the vehicle.");
+
                 }
             });
+            // Land
+//            VehicleApi.getApi(this.drone).setVehicleMode(VehicleMode.COPTER_LAND, new SimpleCommandListener() {
+//                @Override
+//                public void onError(int executionError) {
+//                    alertUser("Unable to land the vehicle.");
+//                }
+//
+//                @Override
+//                public void onTimeout() {
+//                    alertUser("Unable to land the vehicle.");
+//                }
+//            });
         } else if (vehicleState.isArmed()) {
             // Take off
             ControlApi.getApi(this.drone).takeoff(10, new AbstractCommandListener() {
@@ -382,6 +403,7 @@ public class MainActivity extends AppCompatActivity implements DroneListener, To
             // Connect
             alertUser("Connect to a drone first");
         } else {
+//            VehicleApi.getApi(this.drone).setVehicleMode(VehicleMode.COPTER_GUIDED);
             // Connected but not Armed
             VehicleApi.getApi(this.drone).arm(true, false, new SimpleCommandListener() {
                 @Override
@@ -429,6 +451,12 @@ public class MainActivity extends AppCompatActivity implements DroneListener, To
             // Connected but not Armed
             armButton.setText("ARM");
         }
+    }
+
+    protected void updateBatteryVoltage() {
+        TextView valtageTextView = (TextView) findViewById(R.id.batteryVoltage);
+        Battery droneBattery = this.drone.getAttribute(AttributeType.BATTERY);
+        valtageTextView.setText(String.format("%3.2f", droneBattery.getBatteryVoltage()) + "v");
     }
 
     protected void updateAltitude() {
