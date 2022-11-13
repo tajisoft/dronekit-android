@@ -223,9 +223,6 @@ public class CommonApiUtils {
             case ROVER_ACRO:
                 return VehicleMode.ROVER_ACRO;
 
-            case ROVER_LEARNING:
-                return VehicleMode.ROVER_LEARNING;
-
             case ROVER_STEERING:
                 return VehicleMode.ROVER_STEERING;
 
