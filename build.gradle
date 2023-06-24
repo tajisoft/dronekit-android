@@ -110,6 +110,7 @@ allprojects {
         google()
         mavenLocal()
         jcenter()
+        maven { url 'https://jitpack.io' }
 //        maven {
 //            url getMavenRepoUrl()
 //            credentials {

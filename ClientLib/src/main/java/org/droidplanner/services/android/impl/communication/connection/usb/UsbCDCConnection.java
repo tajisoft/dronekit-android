@@ -6,11 +6,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.util.Log;
 
 import com.hoho.android.usbserial.driver.UsbSerialDriver;
+import com.hoho.android.usbserial.driver.UsbSerialPort;
 import com.hoho.android.usbserial.driver.UsbSerialProber;
 
 import com.o3dr.services.android.lib.gcs.link.LinkConnectionStatus;
@@ -113,14 +115,14 @@ class UsbCDCConnection extends UsbConnection.UsbConnectionImpl {
         UsbManager manager = (UsbManager) mContext.getSystemService(Context.USB_SERVICE);
 
         //Get the list of available devices
-        List<UsbDevice> availableDevices = UsbSerialProber.getAvailableSupportedDevices(manager);
+        List<UsbSerialDriver> availableDevices = UsbSerialProber.getDefaultProber().findAllDrivers(manager);
         if (availableDevices.isEmpty()) {
             Log.d(TAG, "No Devices found");
             throw new IOException("No Devices found");
         }
 
         //Pick the first device
-        UsbDevice device = availableDevices.get(0);
+        UsbDevice device = availableDevices.get(0).getDevice();
         if (manager.hasPermission(device)) {
             openUsbDevice(device, extras);
         } else {
@@ -138,27 +140,43 @@ class UsbCDCConnection extends UsbConnection.UsbConnectionImpl {
         UsbManager manager = (UsbManager) mContext.getSystemService(Context.USB_SERVICE);
 
         // Find the first available driver.
-        final UsbSerialDriver serialDriver = UsbSerialProber.openUsbDevice(manager, device);
-
-        if (serialDriver == null) {
+        final UsbSerialDriver serialDriver = UsbSerialProber.getDefaultProber().probeDevice(device);
+        if(serialDriver == null) {
             Log.d(TAG, "No Devices found");
-            throw new IOException("No Devices found");
-        } else {
+            throw new IOException("Serial driver is null");
+        }
+        if(serialDriver.getPorts().size() < 0) {
+            throw new IOException("Serial port num doesn't exists");
+        }
+
+        Log.d(TAG, "port count " + serialDriver.getPorts().size());
+        final UsbSerialPort usbSerialPort = serialDriver.getPorts().get(0);
+        UsbDeviceConnection usbConnection = manager.openDevice(serialDriver.getDevice());
+
+        if(usbConnection == null) {
+            if (!manager.hasPermission(serialDriver.getDevice()))
+                throw new IOException("connection failed: permission denied");
+            else
+                throw new IOException("connection failed: open failed");
+        }
+
+        try {
             Log.d(TAG, "Opening using Baud rate " + mBaudRate);
+            usbSerialPort.open(usbConnection);
+            usbSerialPort.setParameters(mBaudRate, 8, 1, UsbSerialPort.PARITY_NONE);
+//            if(withIoManager) {
+//                usbIoManager = new SerialInputOutputManager(usbSerialPort, this);
+//                usbIoManager.start();
+//            }
+            serialDriverRef.set(serialDriver);
+
+            onUsbConnectionOpened(extras);
+        } catch (Exception e) {
+            Log.e(TAG, "Error setting up device: " + e.getMessage(), e);
             try {
-                serialDriver.open();
-                serialDriver.setParameters(mBaudRate, 8, UsbSerialDriver.STOPBITS_1, UsbSerialDriver.PARITY_NONE);
-
-                serialDriverRef.set(serialDriver);
-
-                onUsbConnectionOpened(extras);
-            } catch (IOException e) {
-                Log.e(TAG, "Error setting up device: " + e.getMessage(), e);
-                try {
-                    serialDriver.close();
-                } catch (IOException e2) {
-                    // Ignore.
-                }
+                usbSerialPort.close();
+            } catch (IOException e2) {
+                // Ignore.
             }
         }
     }
@@ -173,7 +191,7 @@ class UsbCDCConnection extends UsbConnection.UsbConnectionImpl {
 
         int iavailable = 0;
         try {
-            iavailable = serialDriver.read(readData, 200);
+            iavailable = serialDriver.getPorts().get(0).read(readData, 200);
         } catch (NullPointerException e) {
             final String errorMsg = "Error Reading: " + e.getMessage()
                     + "\nAssuming inaccessible USB device.  Closing connection.";
@@ -194,7 +212,7 @@ class UsbCDCConnection extends UsbConnection.UsbConnectionImpl {
         final UsbSerialDriver serialDriver = serialDriverRef.get();
         if (serialDriver != null) {
             try {
-                serialDriver.write(buffer, 500);
+                serialDriver.getPorts().get(0).write(buffer, 500);
             } catch (IOException e) {
                 Log.e(TAG, "Error Sending: " + e.getMessage(), e);
             }
@@ -208,7 +226,7 @@ class UsbCDCConnection extends UsbConnection.UsbConnectionImpl {
         final UsbSerialDriver serialDriver = serialDriverRef.getAndSet(null);
         if (serialDriver != null) {
             try {
-                serialDriver.close();
+                serialDriver.getPorts().get(0).close();
             } catch (IOException e) {
                 Log.e(TAG, e.getMessage(), e);
             }
